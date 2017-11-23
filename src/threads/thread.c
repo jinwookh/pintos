@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -57,6 +58,11 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+
+#ifndef USERPROG
+/* Project #3 */
+bool thread_prior_aging;
+#endif
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -142,6 +148,17 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
+#ifndef USERPROG
+	/* Project #3 */
+	thread_wake_up();
+
+	/* Project #3 */
+	if (thread_prior_aging == true)
+		thread_aging();
+#endif
+
+
 }
 
 /* Prints thread statistics. */
@@ -658,8 +675,8 @@ return_thread(tid_t tid)
 bool
 is_user_vaddr_in_process(tid_t tid)
 {	
-	struct thread *t;
 	struct list_elem *e;
+	struct thread *t;
 	for(e=list_begin(&all_list); e!=list_end(&all_list); e=list_next(e)){
 		t = list_entry(e, struct thread, allelem);
 		if(t->tid==tid)
@@ -667,4 +684,37 @@ is_user_vaddr_in_process(tid_t tid)
 	}
 	if(!is_user_vaddr(t)) return false;
 	else									return true;
+}
+
+/* Prj 3 */
+void
+thread_wake_up(void)
+{
+	/* Iterate block queue and find threads which wake up
+		 <Preparations>
+		 1. block queue : block_list
+		 2. list element : struct list_elem *e		cf) src/lib/kernel/list.h
+	*/
+	struct list_elem *e;
+	struct thread *t;
+	int64_t wakeup_time;
+
+	for(e=list_begin(&block_list); e!=list_end(&block_list); e=list_next(e)){
+		t = list_entry(e, struct thread, elem);
+		wakeup_time = t->wakeup_time;
+		if(timer_ticks() >= wakeup_time){
+			list_remove(e);			//delete from block_list
+			thread_unblock(t);
+		}
+	}
+}
+
+void
+thread_aging(void)
+{
+}
+
+void push_to_block_list (struct list_elem *elem)
+{
+	list_push_back(&block_list, elem);
 }

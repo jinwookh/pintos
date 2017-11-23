@@ -92,8 +92,27 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
+	/* In this position, interrupt is on.
+		 Before we call thread_block(), we need to turn interrupt off.
+		 Since thread_block() takes ASSERT code that checks INTR_OFF.
+		 In threads/interrupt.c, intr_disable() exists.
+	*/
+	// Check that time is over.
+	if(timer_elapsed(start)<ticks){
+		struct thread *t = thread_current();
+		t->wakeup_time = start + ticks;
+		intr_disable();	// make interrupt off
+		/* Since block_list is static in thread.c, if we want to use block_list,
+			 we use function running in thread.c
+		   list_push_back(&block_list, &t->elem); <- Error occurs
+			 		-> Can't using block_list directly		*/
+		push_to_block_list(&t->elem);
+		thread_block();
+	}
+	/*Start of given original codes
   while (timer_elapsed (start) < ticks) 
     thread_yield ();
+	// End of given original codes */
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be

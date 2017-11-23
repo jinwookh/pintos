@@ -4,6 +4,12 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h" 	/* Project #3 */
+
+#ifndef USERPROG
+/* Project #3 */
+extern bool thread_prior_aging;
+#endif
 
 #define NO_PARENT -1	// used for child_process processing
 
@@ -102,6 +108,10 @@ struct thread
 
 		/* Owned by thread.c, using for system call - KH */
 		tid_t parent_tid;										// save thread_current()->tid
+
+		/* Project #3. Threads */
+		int64_t wakeup_time;					// thread가 일어날 시간 = start+ticks
+
 #ifdef USERPROG
 		struct list child_list;							// child process list
 		struct child_process *cp;						// child process pointer
@@ -110,8 +120,7 @@ struct thread
 		struct list fd_list;						// syscall.c의 struct file_descriptor 참조
 		struct file *exec_file;					// denying writes to executables
 #endif
-		/* Project #3. Threads */
-		int64_t wakeup_time;					// thread가 일어날 시간 = start+ticks
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
@@ -156,4 +165,8 @@ bool find_thread(tid_t tid);
 struct thread* return_thread(tid_t tid);
 bool is_user_vaddr_in_process(tid_t tid);
 
+/* Prj 3 */
+void thread_wake_up (void);
+void thread_aging (void);
+void push_to_block_list (struct list_elem *elem);
 #endif /* threads/thread.h */
