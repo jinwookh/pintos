@@ -113,6 +113,11 @@ struct thread
 		/* Project #3. Threads */
 		int64_t wakeup_time;					// thread가 일어날 시간 = start+ticks
 
+		/* Project #3. Used for calculating priority */
+		int nice;											// range of -20~20
+		int recent_cpu;
+
+		
 #ifdef USERPROG
 		struct list child_list;							// child process list
 		struct child_process *cp;						// child process pointer
@@ -170,4 +175,5 @@ bool is_user_vaddr_in_process(tid_t tid);
 void thread_wake_up (void);
 void thread_aging (void);
 void push_to_block_list (struct list_elem *elem);
+int power(int exp);
 #endif /* threads/thread.h */

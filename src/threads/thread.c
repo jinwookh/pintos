@@ -16,11 +16,13 @@
 #include "userprog/process.h"
 #endif
 
-
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
+
+/* Project 3 - Fixed point arithmetic */
+#define LEN_FRACTION 14		// length of fractional bits is 14 in 17.14 format
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -58,6 +60,7 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+static int load_avg;						/* Used to calculate priority */
 
 #ifndef USERPROG
 /* Project #3 */
@@ -104,6 +107,8 @@ thread_init (void)
   list_init (&all_list);
 	list_init (&block_list);
 
+	/* Project #3 - load_avg */
+	load_avg = 0;
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -150,7 +155,49 @@ thread_tick (void)
     intr_yield_on_return ();
 
 #ifndef USERPROG
-	/* Project #3 */
+	/* Project #3 - Priority */
+	/* Calculating ready_threads
+		ready_threads is the number of threads that are either running or 
+			ready to run at time of update(not including the idle thread)
+	*/
+	if(timer_ticks() % TIMER_FREQ == 0){
+		int ready_threads = 0;			
+		// Adding 1 for running thread that is not idle thread
+		if (t != idle_thread)		//if(strcmp(t->name,"idle")!=0)
+			ready_threads = ready_threads + 1;	
+		// Adding number of ready threads that is not idle thread
+		struct list_elem *e;
+		for (e=list_begin (&ready_list); e!=list_end (&ready_list);
+				 e=list_next (e)){
+			t = list_entry(e, struct thread, elem);
+			if(t != idle_thread)
+				ready_threads = ready_threads + 1;
+		}
+
+		// Formula for calculating load_avg using Fixed point arithmetic
+		/* load_avg = (59/60) * load_avg + (1/60) * ready_threads
+		   load_avg is real number, ready_threads is integer
+			 but we already defined type of load_avg to integer.
+			 Thus there is no need to convert load_avg to fixed point(integer)
+			 But 59/60 and 1/60 is real number so we must convert them to use.
+			 Otherwise, 59/60 = 0 and 1/60 = 0. If so, load_avg is always to be 0.
+			 To convert them to fixed point value, multiply dividend by f=2^14.
+			 Thus 59/60 and 1/60 are converted to 59*f/60 and 1*f/60, respectively.
+
+			 Multiplying two fixed-point value formula is 
+			 			((int64_t)x) * y /f where x and y = real_number * f
+			 Beacuse of possibility of overflow, one of fixed-point is casted
+			 to int64_t. And to let the result to be fixed-point,	only one division
+			 is used.
+			 -> ( (int64_t)(59*f/60) ) * load_avg / f where f is 2^14
+			 since load_avg is already converted to fixed point, not using load_avg*f
+
+		*/
+		int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
+		load_avg = ((int64_t)(59*f/60))*load_avg/f + (1*f/60)*ready_threads;
+	}
+
+	/* Project #3 - Alarm clock */
 	thread_wake_up();
 
 	/* Project #3 */
@@ -405,8 +452,9 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+	int f = power(LEN_FRACTION);
+	int result = (100*load_avg + f/2) / f;	// 가장 근처 정수로 반올림
+  return result;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -717,4 +765,13 @@ thread_aging(void)
 void push_to_block_list (struct list_elem *elem)
 {
 	list_push_back(&block_list, elem);
+}
+
+/* Used for f = 2^q in fixed point arithmetic */
+int power(int exp){
+	int result = 1;
+	int i;
+	for(i=0; i<exp; i++)
+		result = result * 2;
+	return result;
 }
