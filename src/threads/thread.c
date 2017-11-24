@@ -700,7 +700,7 @@ thread_wake_up(void)
 	int64_t wakeup_time;
 
 	for(e=list_begin(&block_list); e!=list_end(&block_list); e=list_next(e)){
-		t = list_entry(e, struct thread, elem);
+		t = list_entry(e, struct thread, block_elem);
 		wakeup_time = t->wakeup_time;
 		if(timer_ticks() >= wakeup_time){
 			list_remove(e);			//delete from block_list
