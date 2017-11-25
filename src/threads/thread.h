@@ -176,4 +176,5 @@ void thread_wake_up (void);
 void thread_aging (void);
 void push_to_block_list (struct list_elem *elem);
 int power(int exp);
+bool is_higher (struct thread *new_thread);
 #endif /* threads/thread.h */

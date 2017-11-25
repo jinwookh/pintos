@@ -166,6 +166,11 @@ typedef bool list_less_func (const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux);
 
+/* Project 3 */
+bool find_position (const struct list_elem *a,
+										const struct list_elem *b,
+										void *aux);
+
 /* Operations on lists with ordered elements. */
 void list_sort (struct list *,
                 list_less_func *, void *aux);
