@@ -784,8 +784,6 @@ int power(int exp){
 		result = result * 2;
 	return result;
 }
-<<<<<<< HEAD
-=======
 
 bool is_higher(struct thread *new_thread){
 	// 1) Compare the priorities between new_thread and current_thread
@@ -804,4 +802,3 @@ bool is_higher(struct thread *new_thread){
 	new_thread->status = THREAD_READY;
 	return false;
 }
->>>>>>> 9f492387e26473388911d64600cfab6b6b36f03a
