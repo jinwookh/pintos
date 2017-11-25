@@ -322,9 +322,18 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
+	/* Project 3 */
+	/* If new_thread that will be unblocked has higher priority
+			than current thread, current thread yield the processor immediately
+		 If not, new_thread will be inserted in the ready list as priority order*/
+	//is_higher(t);
+	/* is_higher() does 1) setting the new_thread status and
+											2) insert it to the ready_list if new<=current */
+	///* Below is given origin code
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
-  intr_set_level (old_level);	// interrupt 다시 세팅
+	//*/
+	intr_set_level (old_level);	// interrupt 다시 세팅
 }
 
 /* Returns the name of the running thread. */
@@ -775,3 +784,24 @@ int power(int exp){
 		result = result * 2;
 	return result;
 }
+<<<<<<< HEAD
+=======
+
+bool is_higher(struct thread *new_thread){
+	// 1) Compare the priorities between new_thread and current_thread
+	if(new_thread->priority > thread_current()->priority){
+		new_thread->status = THREAD_RUNNING;
+		thread_yield();
+		return true;
+	}
+
+	/* 2) While iterating ready_list, find the proper position
+				in which new_thread is inserted */
+	//list_insert_ordered(&ready_list, &new_thread->elem, find_position, NULL);
+	// start of test code
+  list_push_back (&ready_list, &new_thread->elem);
+	// end of test code
+	new_thread->status = THREAD_READY;
+	return false;
+}
+>>>>>>> 9f492387e26473388911d64600cfab6b6b36f03a
