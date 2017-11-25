@@ -83,7 +83,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-
+bool less_priority (const struct list_elem* elem1, const struct list_elem* elem2, void* aux);
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -104,8 +104,8 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
-  list_init (&all_list);
-	list_init (&block_list);
+  list_init (&all_list);	
+  list_init (&block_list);
 
 	/* Project #3 - load_avg */
 	load_avg = 0;
@@ -139,7 +139,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-
+  struct list_elem *e;
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -166,9 +166,7 @@ thread_tick (void)
 		if (t != idle_thread)		//if(strcmp(t->name,"idle")!=0)
 			ready_threads = ready_threads + 1;	
 		// Adding number of ready threads that is not idle thread
-		struct list_elem *e;
-		for (e=list_begin (&ready_list); e!=list_end (&ready_list);
-				 e=list_next (e)){
+		for (e=list_begin (&ready_list); e!=list_end (&ready_list); e=list_next (e)){
 			t = list_entry(e, struct thread, elem);
 			if(t != idle_thread)
 				ready_threads = ready_threads + 1;
@@ -197,6 +195,15 @@ thread_tick (void)
 		load_avg = ((int64_t)(59*f/60))*load_avg/f + (1*f/60)*ready_threads;
 	}
 
+       //alarm-priority block queue 상태를 알아보기 위한 실험.////////
+/*	if((e = list_begin(&block_list)) != NULL) {
+		for (e=list_begin (&block_list); e!=list_end (&block_list); e=list_next (e)){
+				t = list_entry(e, struct thread, elem);
+				msg("%s ", t->name);
+	}
+		printf("\n");
+	}*/
+	////////////////////////
 	/* Project #3 - Alarm clock */
 	thread_wake_up();
 
@@ -317,6 +324,9 @@ void
 thread_unblock (struct thread *t) 
 {
   enum intr_level old_level;
+  //추가-진욱
+  void* aux;
+  list_less_func *priority_func = less_priority;
 
   ASSERT (is_thread (t));	// is_thread는 스레드 구조체 침범했는지 검사
 
@@ -547,7 +557,8 @@ init_thread (struct thread *t, const char *name, int priority)
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
 	/* Just only parsing program name. Since later in load() parse_fn called */
-	size_t i;
+#ifdef USERPROG
+  	size_t i;
 	char prog_name[30];
 	strlcpy(prog_name, name, sizeof prog_name);
 	for(i=0;i<strlen(prog_name);i++){
@@ -557,6 +568,10 @@ init_thread (struct thread *t, const char *name, int priority)
 		}
 	}
   strlcpy (t->name, (const char *)prog_name, sizeof t->name);
+#endif
+#ifndef USERPROG
+  strlcpy (t->name, name, sizeof t->name);
+#endif
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;	// is_thread()에서 확인할 부분(이게 바뀌면 안됨)
@@ -764,7 +779,12 @@ thread_aging(void)
 
 void push_to_block_list (struct list_elem *elem)
 {
-	list_push_back(&block_list, elem);
+	void* aux;
+	list_less_func *priority_func = less_priority;
+	//정렬을 도와주는 함수에 대한 함수 포인터
+	list_insert_ordered(&block_list, elem, priority_func, aux);
+	
+	//정렬을 유지하면서 삽입을 한다.
 }
 
 /* Used for f = 2^q in fixed point arithmetic */
@@ -775,3 +795,25 @@ int power(int exp){
 		result = result * 2;
 	return result;
 }
+
+bool less_priority ( const struct list_elem *elem1, const struct list_elem *elem2, void* aux) {
+	struct thread * newone;
+	struct thread * oldone;
+	
+	newone = list_entry(elem1, struct thread, block_elem);
+	oldone = list_entry(elem2, struct thread, block_elem);
+	//list_entry를 사용할 때는 구조체의 어떤 부분이 list_elem인지 꼭 
+//	확인하자.
+//newone은  ready queue에 새로 들어오는 쓰레드
+//oldone은 ready queue에 원래  있던 쓰레드 - newone의 비교 대상
+//내림차순으로 정렬해야 pop_front했을 때 가장 큰 priority를 갖는 thread가 실행된다.
+	if (newone->priority > oldone->priority){
+		return true;
+	}//true 라면 loop를 빠져나와 oldone 쓰레드의 옆에 위치한다.
+//1, 2, 4. 5라는 기존 리스트에 3을 대입하고자 한다면
+// 4옆에서 3이 비교를 멈추는 것과 같은 원리이다.
+	else {
+		return false;
+	}
+}
+	
