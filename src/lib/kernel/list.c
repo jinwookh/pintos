@@ -1,6 +1,6 @@
 #include "list.h"
 #include "../debug.h"
-#include "../../threads/thread.h"
+
 /* Our doubly linked lists have two header elements: the "head"
    just before the first element and the "tail" just after the
    last element.  The `prev' link of the front header is null, as
@@ -439,19 +439,6 @@ list_sort (struct list *list, list_less_func *less, void *aux)
   ASSERT (is_sorted (list_begin (list), list_end (list), less, aux));
 }
 
-/* Project 3 */
-/* Compare element a and element b. Examine a>b */
-bool find_position (const struct list_elem *a, const struct list_elem *b,
-										void *aux UNUSED){
-	bool find=false;
-	struct thread *ta = list_entry(a, struct thread, elem);
-	struct thread *tb = list_entry(b, struct thread, elem);
-	// e.g.) if elem=3, e=3, x=4, y=2, list would be  x--->elem--->e--->y .
-	if(ta->priority >= tb->priority)	
-		find = true;
-	return find;
-}
-
 /* Inserts ELEM in the proper position in LIST, which must be
    sorted according to LESS given auxiliary data AUX.
    Runs in O(n) average case in the number of elements in LIST. */
@@ -535,5 +522,3 @@ list_min (struct list *list, list_less_func *less, void *aux)
     }
   return min;
 }
-
-
