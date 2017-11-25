@@ -333,6 +333,21 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
 	//*/
+	/*
+//-------------------------------------------------------------
+	if(t->priority > thread_current()->priority){
+		t->status = THREAD_RUNNING;
+		thread_yield();
+	}
+	else{
+		//list_insert_ordered(&ready_list, &t->elem, find_position, NULL);
+		// start of test code
+		//list_push_back (&ready_list, &t->elem);
+		// end of test code
+		t->status = THREAD_READY;
+	}
+//-------------------------------------------------------------
+*/
 	intr_set_level (old_level);	// interrupt 다시 세팅
 }
 
@@ -784,8 +799,6 @@ int power(int exp){
 		result = result * 2;
 	return result;
 }
-<<<<<<< HEAD
-=======
 
 bool is_higher(struct thread *new_thread){
 	// 1) Compare the priorities between new_thread and current_thread
@@ -804,4 +817,3 @@ bool is_higher(struct thread *new_thread){
 	new_thread->status = THREAD_READY;
 	return false;
 }
->>>>>>> 9f492387e26473388911d64600cfab6b6b36f03a
