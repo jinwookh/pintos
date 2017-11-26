@@ -8,7 +8,7 @@ make tests/threads/alarm-negative.result
 make tests/threads/priority-change.result
 make tests/threads/priority-change-2.result
 make tests/threads/priority-fifo.result
-make tests/threads/priority-lifo.result
+#make tests/threads/priority-lifo.result
 make tests/threads/priority-preempt.result
 make tests/threads/priority-sema.result
 make tests/threads/priority-aging.result
