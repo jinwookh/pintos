@@ -156,28 +156,32 @@ thread_tick (void)
     intr_yield_on_return ();
 
 #ifndef USERPROG
-	/* Project #3 - Priority */
-	/* Calculating ready_threads
-		ready_threads is the number of threads that are either running or 
-			ready to run at time of update(not including the idle thread)
-	*/
+	/* Project #3 - BSD_scheduler calculating priority
+		1. load_avg = (59/60) * load_avg + (1/60) * ready_threads
+		2. recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice
+		3. priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)	*/
 	if(timer_ticks() % TIMER_FREQ == 0){
+		/* 1-1. Calculating ready_threads
+			ready_threads is the number of threads that are either running or 
+				ready to run at time of update(not including the idle thread) */
 		int ready_threads = 0;			
 		// Adding 1 for running thread that is not idle thread
 		if (t != idle_thread)		//if(strcmp(t->name,"idle")!=0)
 			ready_threads = ready_threads + 1;	
 		// Adding number of ready threads that is not idle thread
-		for (e=list_begin (&ready_list); e!=list_end (&ready_list); e=list_next (e)){
+		for (e=list_begin (&ready_list); e!=list_end (&ready_list); 
+				 e=list_next (e)){
 			t = list_entry(e, struct thread, elem);
 			if(t != idle_thread)
 				ready_threads = ready_threads + 1;
 		}
 
-		// Formula for calculating load_avg using Fixed point arithmetic
-		/* load_avg = (59/60) * load_avg + (1/60) * ready_threads
+		// 1-2. Calculating load_avg using Fixed point arithmetic
+		/* Formula : load_avg = (59/60) * load_avg + (1/60) * ready_threads
 		   load_avg is real number, ready_threads is integer
 			 but we already defined type of load_avg to integer.
-			 Thus there is no need to convert load_avg to fixed point(integer)
+			 Thus there is no need to convert load_avg to fixed point
+				 (represented in integer).
 			 But 59/60 and 1/60 is real number so we must convert them to use.
 			 Otherwise, 59/60 = 0 and 1/60 = 0. If so, load_avg is always to be 0.
 			 To convert them to fixed point value, multiply dividend by f=2^14.
@@ -194,7 +198,28 @@ thread_tick (void)
 		*/
 		int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
 		load_avg = ((int64_t)(59*f/60))*load_avg/f + (1*f/60)*ready_threads;
-	}
+
+		// 2. Calculating recent_cpu using Fixed point arithmetic
+		/* Original Formula :  
+			recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice
+			 Formula represented in Fixed point arithmetic :
+( ((int64_t) 2*load_avg) * f / (2*load_avg + 1*f) ) * recent_cpu / f + nice*f 
+		*/
+		int nice = thread_current()->nice;
+		int recent_cpu = ( ((int64_t) 2*load_avg) * f / (2*load_avg + 1*f) ) 
+									* recent_cpu / f + nice*f;
+		thread_current()->recent_cpu = recent_cpu;
+
+		// 3. Calculating 
+		/* Formula : priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
+			 Formula represented in Fixed point arithmetic : 
+				priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2)
+			Since recent_cpu is Fixed point number, if we want to convert it to
+				real number, it needs to be divided by f.
+			The others has no needs of consideration.
+		*/
+
+	}// end of if(timer_ticks() % TIMER_FREQ == 0)
 
        //alarm-priority block queue 상태를 알아보기 위한 실험.////////
 /*	if((e = list_begin(&block_list)) != NULL) {
@@ -480,8 +505,10 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+	int f = power(LEN_FRACTION);
+	int recent_cpu = thread_current()->recent_cpu;
+	int result = (100*recent_cpu + f/2) / f;	// 가장 근처 정수로 반올림
+  return result;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -803,25 +830,6 @@ int power(int exp){
 	for(i=0; i<exp; i++)
 		result = result * 2;
 	return result;
-}
-
-
-bool is_higher(struct thread *new_thread){
-	// 1) Compare the priorities between new_thread and current_thread
-	if(new_thread->priority > thread_current()->priority){
-		new_thread->status = THREAD_RUNNING;
-		thread_yield();
-		return true;
-	}
-
-	/* 2) While iterating ready_list, find the proper position
-				in which new_thread is inserted */
-	//list_insert_ordered(&ready_list, &new_thread->elem, find_position, NULL);
-	// start of test code
-  list_push_back (&ready_list, &new_thread->elem);
-	// end of test code
-	new_thread->status = THREAD_READY;
-	return false;
 }
 
 bool less_priority ( const struct list_elem *elem1, 
