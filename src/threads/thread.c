@@ -84,6 +84,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 bool less_priority (const struct list_elem* elem1, const struct list_elem* elem2, void* aux);
+bool less_priority2 (const struct list_elem* elem1, const struct list_elem* elem2, void* aux);
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -208,8 +209,12 @@ thread_tick (void)
 	thread_wake_up();
 
 	/* Project #3 */
-	if (thread_prior_aging == true)
+	//진욱- aging함수가 호출되는 간격을 10tick으로 늘렸다.
+	//tick마다 thread_aging 이 작동되면 무언가가 충돌하는 것으로 보인다.
+	if (thread_prior_aging == true && timer_ticks() % 10 == 0)
 		thread_aging();
+	//사소한 의문 하나: timer_ticks() 안에는 interrupt_enable 함수가 있고, 그 함수 안에는 external interrupt면 assertion을 발생하게 하는 코드가 있다.
+	//근데 왜 이 코드에서 assertion이 발생하지 않는 것일까?
 #endif
 
 
@@ -292,7 +297,10 @@ thread_create (const char *name, int priority,
 #endif
   /* Add to run queue. */
   thread_unblock (t);
-
+  if(!thread_prior_aging) {
+  //만약 aging test를 수행할 경우 thread_create될 때 preempt가 발생하지 않도록 한다. 
+	  thread_yield();
+  }
   return tid;
 }	// end of thread_create()
 
@@ -326,7 +334,7 @@ thread_unblock (struct thread *t)
   enum intr_level old_level;
   //추가-진욱
   void* aux;
-  list_less_func *priority_func = less_priority;
+  list_less_func *priority_func = less_priority2;
 
   ASSERT (is_thread (t));	// is_thread는 스레드 구조체 침범했는지 검사
 
@@ -340,7 +348,7 @@ thread_unblock (struct thread *t)
 	/* is_higher() does 1) setting the new_thread status and
 											2) insert it to the ready_list if new<=current */
 	///* Below is given origin code
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, priority_func, aux);
   t->status = THREAD_READY;
 	//*/
 	/*
@@ -359,6 +367,8 @@ thread_unblock (struct thread *t)
 //-------------------------------------------------------------
 */
 	intr_set_level (old_level);	// interrupt 다시 세팅
+	//추가 - 진욱
+//	thread_yield();//preemption하는 역할을 한다.
 }
 
 /* Returns the name of the running thread. */
@@ -422,12 +432,15 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  
+  void * aux;
+  list_less_func* priority_func = less_priority2;
+  //thread_tick에서 thread_yield를 사용할 수 있도록 실험적으로 주석 처리
+  //진욱
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
   if (cur != idle_thread) 		// idle이면 이미 ready_list에 존재
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, priority_func, aux);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -458,6 +471,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -799,6 +813,38 @@ thread_wake_up(void)
 void
 thread_aging(void)
 {
+/*for문을 돌면서 reqdy qeuue안의 thread priority를 1씩 올려준다.
+  그러고 나서 thread_yield를 호출해서 preempt가 발생하게 한다.*/
+ struct list_elem* e;
+ struct thread *t;
+
+ void* aux;
+ list_less_func *priority_func = less_priority2;
+
+ for (e =  list_begin(&ready_list); e!= list_end(&ready_list); e = list_next(e)) {
+	 t = list_entry(e, struct thread, elem);
+	 t->priority += 1;
+	 list_sort ( &ready_list, priority_func, aux);
+ }
+
+
+//priority_aging ready queue 상태를 알아보기 위한 실험.////////
+/*printf("ready_queue: ");	
+for (e=list_begin (&ready_list); e!=list_end (&ready_list); e=list_next (e)){
+	t = list_entry(e, struct thread, elem);
+	msg("%s ", t->name);
+	}
+printf("end!\n");
+*/
+
+
+ /* external interrupt handler가 작동중일 때는 thread_yield를 사용할 수 없으므로(assertion에 걸린다.),
+    그와 동일한 동작을 하는 intr_yield_on_return() 함수를 사용한다.
+    external interrupt와 intr_yield_on_return()에 관한 자세한 함수는 pintos 문서 A.4.3를 참조하세요.
+    */
+intr_yield_on_return(); 
+
+
 }
 
 void push_to_block_list (struct list_elem *elem)
@@ -859,5 +905,25 @@ bool less_priority ( const struct list_elem *elem1, const struct list_elem *elem
 		return false;
 	}
 }
-	
 
+//ready queue에서 priority순 정렬을 하기 위한 코드
+bool less_priority2 ( const struct list_elem *elem1, const struct list_elem *elem2, void* aux) {
+	struct thread * newone;
+	struct thread * oldone;
+	
+	newone = list_entry(elem1, struct thread, elem);
+	oldone = list_entry(elem2, struct thread, elem);
+	//list_entry를 사용할 때는 구조체의 어떤 부분이 list_elem인지 꼭 
+//	확인하자.
+//newone은  ready queue에 새로 들어오는 쓰레드
+//oldone은 ready queue에 원래  있던 쓰레드 - newone의 비교 대상
+//내림차순으로 정렬해야 pop_front했을 때 가장 큰 priority를 갖는 thread가 실행된다.
+	if (newone->priority > oldone->priority){
+		return true;
+	}//true 라면 loop를 빠져나와 oldone 쓰레드의 옆에 위치한다.
+//1, 2, 4. 5라는 기존 리스트에 3을 대입하고자 한다면
+// 4옆에서 3이 비교를 멈추는 것과 같은 원리이다.
+	else {
+		return false;
+	}
+}
