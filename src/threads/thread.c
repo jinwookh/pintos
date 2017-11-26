@@ -236,8 +236,12 @@ thread_tick (void)
 	thread_wake_up();
 
 	/* Project #3 */
-	if (thread_prior_aging == true)
+	//진욱- aging함수가 호출되는 간격을 10tick으로 늘렸다.
+	//tick마다 thread_aging 이 작동되면 무언가가 충돌하는 것으로 보인다.
+	if (thread_prior_aging == true && timer_ticks() % 10 == 0)
 		thread_aging();
+	//사소한 의문 하나: timer_ticks() 안에는 interrupt_enable 함수가 있고, 그 함수 안에는 external interrupt면 assertion을 발생하게 하는 코드가 있다.
+	//근데 왜 이 코드에서 assertion이 발생하지 않는 것일까?
 #endif
 
 
@@ -320,7 +324,10 @@ thread_create (const char *name, int priority,
 #endif
   /* Add to run queue. */
   thread_unblock (t);
-  thread_yield();
+  if(!thread_prior_aging) {
+  //만약 aging test를 수행할 경우 thread_create될 때 preempt가 발생하지 않도록 한다. 
+	  thread_yield();
+  }
   return tid;
 }	// end of thread_create()
 
@@ -821,6 +828,38 @@ thread_wake_up(void)
 void
 thread_aging(void)
 {
+/*for문을 돌면서 reqdy qeuue안의 thread priority를 1씩 올려준다.
+  그러고 나서 thread_yield를 호출해서 preempt가 발생하게 한다.*/
+ struct list_elem* e;
+ struct thread *t;
+
+ void* aux;
+ list_less_func *priority_func = less_priority2;
+
+ for (e =  list_begin(&ready_list); e!= list_end(&ready_list); e = list_next(e)) {
+	 t = list_entry(e, struct thread, elem);
+	 t->priority += 1;
+	 list_sort ( &ready_list, priority_func, aux);
+ }
+
+
+//priority_aging ready queue 상태를 알아보기 위한 실험.////////
+/*printf("ready_queue: ");	
+for (e=list_begin (&ready_list); e!=list_end (&ready_list); e=list_next (e)){
+	t = list_entry(e, struct thread, elem);
+	msg("%s ", t->name);
+	}
+printf("end!\n");
+*/
+
+
+ /* external interrupt handler가 작동중일 때는 thread_yield를 사용할 수 없으므로(assertion에 걸린다.),
+    그와 동일한 동작을 하는 intr_yield_on_return() 함수를 사용한다.
+    external interrupt와 intr_yield_on_return()에 관한 자세한 함수는 pintos 문서 A.4.3를 참조하세요.
+    */
+intr_yield_on_return(); 
+
+
 }
 
 void push_to_block_list (struct list_elem *elem)
@@ -903,4 +942,3 @@ calc_priority(int nice){
 	int recent_cpu = t->recent_cpu;
 	t->priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2);
 }
-
