@@ -203,21 +203,23 @@ thread_tick (void)
 		/* Original Formula :  
 			recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice
 			 Formula represented in Fixed point arithmetic :
-( ((int64_t) 2*load_avg) * f / (2*load_avg + 1*f) ) * recent_cpu / f + nice*f 
+					(((int64_t) 2*load_avg) * f / (2*load_avg + 1*f))
+						* recent_cpu / f + nice*f 
 		*/
-		int nice = thread_current()->nice;
+		int nice = t->nice;
 		int recent_cpu = ( ((int64_t) 2*load_avg) * f / (2*load_avg + 1*f) ) 
 									* recent_cpu / f + nice*f;
-		thread_current()->recent_cpu = recent_cpu;
+		t->recent_cpu = recent_cpu;
 
 		// 3. Calculating 
 		/* Formula : priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
 			 Formula represented in Fixed point arithmetic : 
 				priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2)
-			Since recent_cpu is Fixed point number, if we want to convert it to
-				real number, it needs to be divided by f.
-			The others has no needs of consideration.
+			  Since recent_cpu is Fixed point number, if we want to convert it to
+			  	real number, it needs to be divided by f.
+			  The others has no needs of consideration.
 		*/
+		t->priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2);
 
 	}// end of if(timer_ticks() % TIMER_FREQ == 0)
 
@@ -351,7 +353,7 @@ thread_unblock (struct thread *t)
 {
   enum intr_level old_level;
   //추가-진욱
-  void* aux;
+  void* aux = NULL;
   list_less_func *priority_func = less_priority2;
 
   ASSERT (is_thread (t));	// is_thread는 스레드 구조체 침범했는지 검사
@@ -430,7 +432,7 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  void * aux;
+  void * aux = NULL;
   list_less_func* priority_func = less_priority2;
   ASSERT (!intr_context ());
 
@@ -479,17 +481,20 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int new_nice) // 원래 (int nice UNUSED)로 되어있었음
 {
-  /* Not yet implemented. */
+	struct thread *t = thread_current();
+	t->nice = new_nice;
+	// priority를 새로 계산해서 업데이트 - 함수를 만들어서 호출
+	// t->priority = 함수로 계산한 새로운 priority값;
+	// 우선순위에 따라 양보 - thread_yield()호출
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -608,6 +613,10 @@ init_thread (struct thread *t, const char *name, int priority)
 #ifndef USERPROG
   strlcpy (t->name, name, sizeof t->name);
 #endif
+	/* Project #3 */
+	t->recent_cpu = 0;
+	t->nice = 0;
+
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;	// is_thread()에서 확인할 부분(이게 바뀌면 안됨)
@@ -775,7 +784,7 @@ bool
 is_user_vaddr_in_process(tid_t tid)
 {	
 	struct list_elem *e;
-	struct thread *t;
+	struct thread *t = NULL;
 	for(e=list_begin(&all_list); e!=list_end(&all_list); e=list_next(e)){
 		t = list_entry(e, struct thread, allelem);
 		if(t->tid==tid)
@@ -815,7 +824,7 @@ thread_aging(void)
 
 void push_to_block_list (struct list_elem *elem)
 {
-	void* aux;
+	void* aux = NULL;
 	list_less_func *priority_func = less_priority;
 	//정렬을 도와주는 함수에 대한 함수 포인터
 	list_insert_ordered(&block_list, elem, priority_func, aux);
@@ -881,3 +890,18 @@ bool less_priority2 ( const struct list_elem *elem1,
 		return false;
 	}
 }
+
+/*2.2.4 BSD scheduler - Calculating priority
+파라미터: nice 
+하는  일: 공식에 따라 새로운 priority를 계산하여 스레드에 업데이트함.
+리턴  값: 새로 계산된 priorirty
+*/
+int
+calc_priority(int nice){
+	int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
+	struct thread *t = thread_current();
+	int recent_cpu = t->recent_cpu;
+	t->priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2);
+	return t->priority;
+}
+

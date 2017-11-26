@@ -188,4 +188,6 @@ bool less_priority2 (const struct list_elem *elem1,
 										 void* aux UNUSED);
 /* prioirty의 대소관계를 비교해주는 함수. 왜 const를 써야하는지는 모른다.
    list_less_func의 형식에 맞게 사용했다.*/
+
+int calc_priority(int nice);
 #endif /* threads/thread.h */
