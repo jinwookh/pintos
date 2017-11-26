@@ -177,7 +177,11 @@ void thread_aging (void);
 void push_to_block_list (struct list_elem *elem);
 int power(int exp);
 
+//block queue의 priority순 정렬을 위한 코드
 bool less_priority (const struct list_elem *elem1, const struct list_elem *elem2, void* aux);
+
+//ready queue의 priority순 정렬을 위한 코드
+bool less_priority2 (const struct list_elem *elem1, const struct list_elem *elem2, void* aux);
 /* prioirty의 대소관계를 비교해주는 함수. 왜 const를 써야하는지는 모른다.
    list_less_func의 형식에 맞게 사용했다.*/
 #endif /* threads/thread.h */
