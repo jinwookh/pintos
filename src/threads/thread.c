@@ -208,7 +208,7 @@ thread_tick (void)
 		*/
 		int nice = t->nice;
 		int recent_cpu = ( ((int64_t) 2*load_avg) * f / (2*load_avg + 1*f) ) 
-									* recent_cpu / f + nice*f;
+									* t->recent_cpu / f + nice*f;
 		t->recent_cpu = recent_cpu;
 
 		// 3. Calculating 
@@ -833,7 +833,7 @@ thread_aging(void)
  struct list_elem* e;
  struct thread *t;
 
- void* aux;
+ void* aux = NULL;
  list_less_func *priority_func = less_priority2;
 
  for (e =  list_begin(&ready_list); e!= list_end(&ready_list); e = list_next(e)) {
