@@ -486,8 +486,9 @@ thread_set_nice (int new_nice) // 원래 (int nice UNUSED)로 되어있었음
 	struct thread *t = thread_current();
 	t->nice = new_nice;
 	// priority를 새로 계산해서 업데이트 - 함수를 만들어서 호출
-	// t->priority = 함수로 계산한 새로운 priority값;
+	calc_priority(new_nice);
 	// 우선순위에 따라 양보 - thread_yield()호출
+	thread_yield();
 }
 
 /* Returns the current thread's nice value. */
@@ -894,14 +895,12 @@ bool less_priority2 ( const struct list_elem *elem1,
 /*2.2.4 BSD scheduler - Calculating priority
 파라미터: nice 
 하는  일: 공식에 따라 새로운 priority를 계산하여 스레드에 업데이트함.
-리턴  값: 새로 계산된 priorirty
 */
-int
+void
 calc_priority(int nice){
 	int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
 	struct thread *t = thread_current();
 	int recent_cpu = t->recent_cpu;
 	t->priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2);
-	return t->priority;
 }
 
