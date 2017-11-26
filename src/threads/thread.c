@@ -337,28 +337,8 @@ thread_unblock (struct thread *t)
 	/* If new_thread that will be unblocked has higher priority
 			than current thread, current thread yield the processor immediately
 		 If not, new_thread will be inserted in the ready list as priority order*/
-	//is_higher(t);
-	/* is_higher() does 1) setting the new_thread status and
-											2) insert it to the ready_list if new<=current */
-	///* Below is given origin code
   list_insert_ordered (&ready_list, &t->elem, priority_func, aux);
   t->status = THREAD_READY;
-	//*/
-	/*
-//-------------------------------------------------------------
-	if(t->priority > thread_current()->priority){
-		t->status = THREAD_RUNNING;
-		thread_yield();
-	}
-	else{
-		//list_insert_ordered(&ready_list, &t->elem, find_position, NULL);
-		// start of test code
-		//list_push_back (&ready_list, &t->elem);
-		// end of test code
-		t->status = THREAD_READY;
-	}
-//-------------------------------------------------------------
-*/
 	intr_set_level (old_level);	// interrupt 다시 세팅
 	//추가 - 진욱
 //	thread_yield();//preemption하는 역할을 한다.
@@ -844,7 +824,12 @@ bool is_higher(struct thread *new_thread){
 	return false;
 }
 
-bool less_priority ( const struct list_elem *elem1, const struct list_elem *elem2, void* aux) {
+bool less_priority ( const struct list_elem *elem1, 
+										 const struct list_elem *elem2, 
+										 void* aux UNUSED) {	
+	/* UNUSED매크로를 사용하면 컴파일러가 함수 내부에서
+	   해당 파라미터가 사용되지 않았어도 warning메시지를
+		 만들지 않은 채로 무시하고 지나감*/
 	struct thread * newone;
 	struct thread * oldone;
 	
@@ -866,7 +851,9 @@ bool less_priority ( const struct list_elem *elem1, const struct list_elem *elem
 }
 
 //ready queue에서 priority순 정렬을 하기 위한 코드
-bool less_priority2 ( const struct list_elem *elem1, const struct list_elem *elem2, void* aux) {
+bool less_priority2 ( const struct list_elem *elem1, 
+											const struct list_elem *elem2, 
+											void* aux UNUSED) {
 	struct thread * newone;
 	struct thread * oldone;
 	
