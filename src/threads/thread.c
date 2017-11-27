@@ -61,6 +61,7 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 static int load_avg;						/* Used to calculate priority */
+int f = 1<<LEN_FRACTION;					//power(LEN_FRACTION);
 
 #ifndef USERPROG
 /* Project #3 */
@@ -140,7 +141,6 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-  struct list_elem *e;
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -156,82 +156,27 @@ thread_tick (void)
     intr_yield_on_return ();
 
 #ifndef USERPROG
-	/* Project #3 - BSD_scheduler calculating priority
-		1. load_avg = (59/60) * load_avg + (1/60) * ready_threads
-		2. recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice
-		3. priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)	*/
+	/* Project #3 - BSD_scheduler calculating priority */
+	/* In each tick, recent_cpu is incremented by 1 for the running thread only
+		0. recent_cpu = recent_cpu + 1 */
+	t->recent_cpu = t->recent_cpu + 1*f;
+
+	/* Below is executed in each 4 ticks
+		1. priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)	*/
+	if(timer_ticks() % 4 == 0){
+		calc_priority();
+	}
+
+	/* Below is executed in each second(== 100 tick)
+		2. load_avg = (59/60) * load_avg + (1/60) * ready_threads
+		3. recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice */
 	if(timer_ticks() % TIMER_FREQ == 0){
-		/* 1-1. Calculating ready_threads
-			ready_threads is the number of threads that are either running or 
-				ready to run at time of update(not including the idle thread) */
-		int ready_threads = 0;			
-		// Adding 1 for running thread that is not idle thread
-		if (t != idle_thread)		//if(strcmp(t->name,"idle")!=0)
-			ready_threads = ready_threads + 1;	
-		// Adding number of ready threads that is not idle thread
-		for (e=list_begin (&ready_list); e!=list_end (&ready_list); 
-				 e=list_next (e)){
-			t = list_entry(e, struct thread, elem);
-			if(t != idle_thread)
-				ready_threads = ready_threads + 1;
-		}
-
-		// 1-2. Calculating load_avg using Fixed point arithmetic
-		/* Formula : load_avg = (59/60) * load_avg + (1/60) * ready_threads
-		   load_avg is real number, ready_threads is integer
-			 but we already defined type of load_avg to integer.
-			 Thus there is no need to convert load_avg to fixed point
-				 (represented in integer).
-			 But 59/60 and 1/60 is real number so we must convert them to use.
-			 Otherwise, 59/60 = 0 and 1/60 = 0. If so, load_avg is always to be 0.
-			 To convert them to fixed point value, multiply dividend by f=2^14.
-			 Thus 59/60 and 1/60 are converted to 59*f/60 and 1*f/60, respectively.
-
-			 Multiplying two fixed-point value formula is 
-			 			((int64_t)x) * y /f where x and y = real_number * f
-			 Beacuse of possibility of overflow, one of fixed-point is casted
-			 to int64_t. And to let the result to be fixed-point,	only one division
-			 is used.
-			 -> ( (int64_t)(59*f/60) ) * load_avg / f where f is 2^14
-			 since load_avg is already converted to fixed point, not using load_avg*f
-
-		*/
-		int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
-		load_avg = ((int64_t)(59*f/60))*load_avg/f + (1*f/60)*ready_threads;
-
-		// 2. Calculating recent_cpu using Fixed point arithmetic
-		/* Original Formula :  
-			recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice
-			 Formula represented in Fixed point arithmetic :
-					(((int64_t) 2*load_avg) * f / (2*load_avg + 1*f))
-						* recent_cpu / f + nice*f 
-		*/
-		int nice = t->nice;
-		int recent_cpu = ( ((int64_t) 2*load_avg) * f / (2*load_avg + 1*f) ) 
-									* t->recent_cpu / f + nice*f;
-		t->recent_cpu = recent_cpu;
-
-		// 3. Calculating 
-		/* Formula : priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
-			 Formula represented in Fixed point arithmetic : 
-				priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2)
-			  Since recent_cpu is Fixed point number, if we want to convert it to
-			  	real number, it needs to be divided by f.
-			  The others has no needs of consideration.
-		*/
-		t->priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2);
-
+		if(thread_mlfqs==true){
+			calc_load_avg();
+			calc_recent_cpu_for_all();
+		}// end of if(thread_mlfqs==true)
 	}// end of if(timer_ticks() % TIMER_FREQ == 0)
 
-       //alarm-priority block queue 상태를 알아보기 위한 실험.////////
-/*	if((e = list_begin(&block_list)) != NULL) {
-		for (e=list_begin (&block_list); e!=list_end (&block_list); e=list_next (e)){
-				t = list_entry(e, struct thread, elem);
-				msg("%s ", t->name);
-	}
-		printf("\n");
-	}*/
-	////////////////////////
 	/* Project #3 - Alarm clock */
 	thread_wake_up();
 
@@ -243,8 +188,6 @@ thread_tick (void)
 	//사소한 의문 하나: timer_ticks() 안에는 interrupt_enable 함수가 있고, 그 함수 안에는 external interrupt면 assertion을 발생하게 하는 코드가 있다.
 	//근데 왜 이 코드에서 assertion이 발생하지 않는 것일까?
 #endif
-
-
 }
 
 /* Prints thread statistics. */
@@ -493,7 +436,7 @@ thread_set_nice (int new_nice) // 원래 (int nice UNUSED)로 되어있었음
 	struct thread *t = thread_current();
 	t->nice = new_nice;
 	// priority를 새로 계산해서 업데이트 - 함수를 만들어서 호출
-	calc_priority(new_nice);
+	calc_priority();
 	// 우선순위에 따라 양보 - thread_yield()호출
 	thread_yield();
 }
@@ -511,6 +454,9 @@ thread_get_load_avg (void)
 {
 	int f = power(LEN_FRACTION);
 	int result = (100*load_avg + f/2) / f;	// 가장 근처 정수로 반올림
+	/* start of test code */
+	//int result = (100*load_avg) / f;	// 가장 근처 정수로 반올림
+	/* end of test code */
   return result;
 }
 
@@ -521,6 +467,9 @@ thread_get_recent_cpu (void)
 	int f = power(LEN_FRACTION);
 	int recent_cpu = thread_current()->recent_cpu;
 	int result = (100*recent_cpu + f/2) / f;	// 가장 근처 정수로 반올림
+	/* start of test code */
+	//int result = (100*recent_cpu) / f;	// 가장 근처 정수로 반올림
+	/* end of test code */
   return result;
 }
 
@@ -622,25 +571,39 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
 #endif
 	/* Project #3 */
+	///* 상속 구현을 위해 주석 처리
 	t->recent_cpu = 0;
 	t->nice = 0;
+	//*/
 
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;	// is_thread()에서 확인할 부분(이게 바뀌면 안됨)
   list_push_back (&all_list, &t->allelem);
-#ifdef USERPROG
-	/* Initialize for child process - KH */
+/* start of test code */
+//#ifndef USERPROG
+/* end of test code */
+#ifdef USERPROG	// origin code
+	// Initialize for child process - KH
 	if(strcmp(name, "main")==0){	// Case : main thread - NO_PARENT
 		t->parent_tid = NO_PARENT;
+		// start of test code
+		t->recent_cpu = 0;
+		t->nice = 0;
+		/* end of test code */
 	}
 	else{													// Case : Others must have parent thread
 		t->parent_tid = thread_current()->tid;
+		/* start of test code */
+			t->recent_cpu = thread_current()->recent_cpu;
+			t->nice = thread_current()->nice;
+		/* end of test code */
 	}
 	list_init(&t->child_list);		// Initializing child_list
 	list_init(&t->fd_list);				// Initializing fd_list
 	t->cp = NULL;
 #endif
+
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -931,14 +894,102 @@ bool less_priority2 ( const struct list_elem *elem1,
 	}
 }
 
+/* 함수이름 : calc_load_avg
+   하는  일 : 아래와 같음
+1-1. Calculating ready_threads
+	ready_threads is the number of threads that are either running or 
+		ready to run at time of update(not including the idle thread)
+1-2. Calculating load_avg using Fixed point arithmetic
+	 Formula : load_avg = (59/60) * load_avg + (1/60) * ready_threads
+	 load_avg is real number, ready_threads is integer
+	 but we already defined type of load_avg to integer.
+	 Thus there is no need to convert load_avg to fixed point
+		 (represented in integer).
+	 But 59/60 and 1/60 is real number so we must convert them to use.
+	 Otherwise, 59/60 = 0 and 1/60 = 0. If so, load_avg is always to be 0.
+	 To convert them to fixed point value, multiply dividend by f=2^14.
+	 Thus 59/60 and 1/60 are converted to 59*f/60 and 1*f/60, respectively.
+
+	 Multiplying two fixed-point value formula is 
+				((int64_t)x) * y /f where x and y = real_number * f
+	 Beacuse of possibility of overflow, one of fixed-point is casted
+	 to int64_t. And to let the result to be fixed-point,	only one division
+	 is used.
+	 -> ( (int64_t)(59*f/60) ) * load_avg / f where f is 2^14
+	 since load_avg is already converted to fixed point, not using load_avg*f
+*/
+void
+calc_load_avg(void){
+	struct thread *t = thread_current();
+	struct list_elem *e;
+	if(t!=idle_thread)	// idle 제외하고 매 틱마다 1증가
+		t->recent_cpu = t->recent_cpu + 1*f;	// Fixed point + integer
+	/* start of test code */
+	//t->recent_cpu = t->recent_cpu + 1*f;	// Fixed point + integer
+	/* end of test code */
+
+	int ready_threads = 0;
+	// Number of running & ready threads excluding idle thread
+	// 1) count running thread
+	if (t != idle_thread)	
+		ready_threads = ready_threads + 1; // +1 for running
+	// 2) count ready thread
+	for (e=list_begin (&ready_list); e!=list_end (&ready_list); 
+			 e=list_next (e)){
+		t = list_entry(e, struct thread, elem);
+		if(t != idle_thread)
+			ready_threads = ready_threads + 1;
+	}
+	load_avg = ((int64_t)(59*f/60))*load_avg/f + (1*f/60)*ready_threads;
+}
+
+/* 함수이름 : calc_recent_cpu
+   하는  일 : 인자로 받은 스레드에 대하여 recent_cpu 재계산
+ 2. Calculating recent_cpu using Fixed point arithmetic
+	 1)Original Formula
+	 	 recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice
+	 2)Formula represented in Fixed point arithmetic
+		 recent_cpu = (((int64_t) 2*load_avg) * f / (2*load_avg + 1*f))
+					* recent_cpu / f + nice*f 
+*/
+void
+calc_recent_cpu(struct thread *t){
+	int nice = t->nice;
+	int recent_cpu = ( ((int64_t) 2*load_avg)*f/(2*load_avg + 1*f) ) 
+									* t->recent_cpu / f + nice*f;
+	t->recent_cpu = recent_cpu;
+}
+/* 함수이름 : calc_recent_cpu_for_all
+   하는  일 : 1초(100틱)마다 존재하는 모든 스레드에 대하여 recent_cpu 재계산
+*/
+void
+calc_recent_cpu_for_all(void){
+	// Iterate all_list and calculate each thread's recent_cpu
+	struct thread *t;
+	struct list_elem *e;
+	for(e=list_begin(&all_list); e!=list_end(&all_list);
+			e=list_next(&all_list)){
+		t = list_entry(e, struct thread, allelem);
+		calc_recent_cpu(t);
+	}
+}
 /*2.2.4 BSD scheduler - Calculating priority
 파라미터: nice 
 하는  일: 공식에 따라 새로운 priority를 계산하여 스레드에 업데이트함.
+	1) Formula
+				priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
+	2) Formula represented in Fixed point arithmetic
+				priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2)
+	Since recent_cpu is Fixed point number, if we want to convert it to
+		real number, it needs to be divided by f.
+	The others has no needs of consideration.
 */
 void
-calc_priority(int nice){
-	int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
+calc_priority(void){
+	//int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
 	struct thread *t = thread_current();
+	int nice = t->nice;
 	int recent_cpu = t->recent_cpu;
 	t->priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2);
 }
+#include "threads/thread.h"

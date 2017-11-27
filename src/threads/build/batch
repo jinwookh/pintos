@@ -13,12 +13,6 @@
 #make tests/threads/priority-sema.result
 #make tests/threads/priority-aging.result
 
-make tests/threads/mlfqs-load-1.result
-make tests/threads/mlfqs-load-60.result
-make tests/threads/mlfqs-load-avg.result
 make tests/threads/mlfqs-recent-1.result
-make tests/threads/mlfqs-fair-2.result
-make tests/threads/mlfqs-fair-20.result
-make tests/threads/mlfqs-nice-2.result
-make tests/threads/mlfqs-nice-10.result
-make tests/threads/mlfqs-block.result
+#make tests/threads/mlfqs-load-avg.result
+#make tests/threads/mlfqs-nice-2.result
