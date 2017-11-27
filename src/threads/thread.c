@@ -776,7 +776,7 @@ thread_wake_up(void)
 void
 thread_aging(void)
 {
-/*for문을 돌면서 reqdy qeuue안의 thread priority를 1씩 올려준다.
+/*for문을 돌면서 reqdy queue안의 thread priority를 1씩 올려준다.
   그러고 나서 thread_yield를 호출해서 preempt가 발생하게 한다.*/
  struct list_elem* e;
  struct thread *t;
@@ -807,15 +807,6 @@ void push_to_block_list (struct list_elem *elem)
 	list_insert_ordered(&block_list, elem, priority_func, aux);
 	
 	//정렬을 유지하면서 삽입을 한다.
-}
-
-/* Used for f = 2^q in fixed point arithmetic */
-int power(int exp){
-	int result = 1;
-	int i;
-	for(i=0; i<exp; i++)
-		result = result * 2;
-	return result;
 }
 
 bool less_priority ( const struct list_elem *elem1, 

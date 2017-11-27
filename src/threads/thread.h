@@ -177,7 +177,6 @@ bool is_user_vaddr_in_process(tid_t tid);
 void thread_wake_up (void);
 void thread_aging (void);
 void push_to_block_list (struct list_elem *elem);
-int power(int exp);
 
 //block queue의 priority순 정렬을 위한 코드
 bool less_priority (const struct list_elem *elem1, 
