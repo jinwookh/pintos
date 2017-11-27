@@ -968,7 +968,7 @@ calc_recent_cpu_for_all(void){
 	struct thread *t;
 	struct list_elem *e;
 	for(e=list_begin(&all_list); e!=list_end(&all_list);
-			e=list_next(&all_list)){
+			e=list_next(e)){
 		t = list_entry(e, struct thread, allelem);
 		calc_recent_cpu(t);
 	}
