@@ -156,26 +156,29 @@ thread_tick (void)
     intr_yield_on_return ();
 
 #ifndef USERPROG
-	/* Project #3 - BSD_scheduler calculating priority */
-	/* In each tick, recent_cpu is incremented by 1 for the running thread only
-		0. recent_cpu = recent_cpu + 1 */
-	t->recent_cpu = t->recent_cpu + 1*f;
+	if(thread_mlfqs==true){
+		/* Project #3 - BSD_scheduler calculating priority */
+		/* In each tick, recent_cpu is incremented by 1 for the running thread only
+			0. recent_cpu = recent_cpu + 1 */
+		/* start of test code */
+		if(t!=idle_thread)
+		/*end of test code */
+			t->recent_cpu = t->recent_cpu + 1*f;
 
-	/* Below is executed in each 4 ticks
-		1. priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)	*/
-	if(timer_ticks() % 4 == 0){
-		calc_priority();
-	}
+		/* Below is executed in each 4 ticks
+			1. priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)	*/
+		if(timer_ticks() % 4 == 0){
+			calc_priority_for_all();
+		}
 
-	/* Below is executed in each second(== 100 tick)
-		2. load_avg = (59/60) * load_avg + (1/60) * ready_threads
-		3. recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice */
-	if(timer_ticks() % TIMER_FREQ == 0){
-		if(thread_mlfqs==true){
-			calc_load_avg();
-			calc_recent_cpu_for_all();
-		}// end of if(thread_mlfqs==true)
-	}// end of if(timer_ticks() % TIMER_FREQ == 0)
+		/* Below is executed in each second(== 100 tick)
+			2. load_avg = (59/60) * load_avg + (1/60) * ready_threads
+			3. recent_cpu = (2*load_avg) / (2*load_avg + 1) * recent_cpu + nice */
+		if(timer_ticks() % TIMER_FREQ == 0){
+				calc_load_avg();
+				calc_recent_cpu_for_all();
+		}// end of if(timer_ticks() % TIMER_FREQ == 0)
+	}// end of if(thread_mlfqs==true)
 
 	/* Project #3 - Alarm clock */
 	thread_wake_up();
@@ -436,7 +439,7 @@ thread_set_nice (int new_nice) // 원래 (int nice UNUSED)로 되어있었음
 	struct thread *t = thread_current();
 	t->nice = new_nice;
 	// priority를 새로 계산해서 업데이트 - 함수를 만들어서 호출
-	calc_priority();
+	calc_priority(t);
 	// 우선순위에 따라 양보 - thread_yield()호출
 	thread_yield();
 }
@@ -452,24 +455,15 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-	int f = power(LEN_FRACTION);
-	int result = (100*load_avg + f/2) / f;	// 가장 근처 정수로 반올림
-	/* start of test code */
-	//int result = (100*load_avg) / f;	// 가장 근처 정수로 반올림
-	/* end of test code */
-  return result;
+	return (100*load_avg + f/2) / f;	// 가장 근처 정수로 반올림
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-	int f = power(LEN_FRACTION);
 	int recent_cpu = thread_current()->recent_cpu;
 	int result = (100*recent_cpu + f/2) / f;	// 가장 근처 정수로 반올림
-	/* start of test code */
-	//int result = (100*recent_cpu) / f;	// 가장 근처 정수로 반올림
-	/* end of test code */
   return result;
 }
 
@@ -571,33 +565,24 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
 #endif
 	/* Project #3 */
-	///* 상속 구현을 위해 주석 처리
 	t->recent_cpu = 0;
 	t->nice = 0;
-	//*/
 
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+	if(thread_mlfqs==true)
+		calc_priority(t);
+	else
+		t->priority = priority;
   t->magic = THREAD_MAGIC;	// is_thread()에서 확인할 부분(이게 바뀌면 안됨)
   list_push_back (&all_list, &t->allelem);
-/* start of test code */
-//#ifndef USERPROG
-/* end of test code */
-#ifdef USERPROG	// origin code
+
+#ifdef USERPROG
 	// Initialize for child process - KH
 	if(strcmp(name, "main")==0){	// Case : main thread - NO_PARENT
 		t->parent_tid = NO_PARENT;
-		// start of test code
-		t->recent_cpu = 0;
-		t->nice = 0;
-		/* end of test code */
 	}
 	else{													// Case : Others must have parent thread
 		t->parent_tid = thread_current()->tid;
-		/* start of test code */
-			t->recent_cpu = thread_current()->recent_cpu;
-			t->nice = thread_current()->nice;
-		/* end of test code */
 	}
 	list_init(&t->child_list);		// Initializing child_list
 	list_init(&t->fd_list);				// Initializing fd_list
@@ -805,17 +790,6 @@ thread_aging(void)
 	 list_sort ( &ready_list, priority_func, aux);
  }
 
-
-//priority_aging ready queue 상태를 알아보기 위한 실험.////////
-/*printf("ready_queue: ");	
-for (e=list_begin (&ready_list); e!=list_end (&ready_list); e=list_next (e)){
-	t = list_entry(e, struct thread, elem);
-	msg("%s ", t->name);
-	}
-printf("end!\n");
-*/
-
-
  /* external interrupt handler가 작동중일 때는 thread_yield를 사용할 수 없으므로(assertion에 걸린다.),
     그와 동일한 동작을 하는 intr_yield_on_return() 함수를 사용한다.
     external interrupt와 intr_yield_on_return()에 관한 자세한 함수는 pintos 문서 A.4.3를 참조하세요.
@@ -924,9 +898,6 @@ calc_load_avg(void){
 	struct list_elem *e;
 	if(t!=idle_thread)	// idle 제외하고 매 틱마다 1증가
 		t->recent_cpu = t->recent_cpu + 1*f;	// Fixed point + integer
-	/* start of test code */
-	//t->recent_cpu = t->recent_cpu + 1*f;	// Fixed point + integer
-	/* end of test code */
 
 	int ready_threads = 0;
 	// Number of running & ready threads excluding idle thread
@@ -985,11 +956,21 @@ calc_recent_cpu_for_all(void){
 	The others has no needs of consideration.
 */
 void
-calc_priority(void){
-	//int f = power(LEN_FRACTION);		// Value of 14 - defined in this file
-	struct thread *t = thread_current();
+calc_priority(struct thread *t){
 	int nice = t->nice;
 	int recent_cpu = t->recent_cpu;
 	t->priority = PRI_MAX - (recent_cpu/f/4) - (nice * 2);
+	if(t->priority<PRI_MIN)	t->priority=PRI_MIN;
+	else if(t->priority>PRI_MAX) t->priority=PRI_MAX;
 }
+void
+calc_priority_for_all(void){
+	struct list_elem *e;
+	for(e=list_begin(&all_list); e!=list_end(&all_list);
+			e=list_next(e)){
+		struct thread *t = list_entry(e, struct thread, allelem);
+		calc_priority(t);
+	}
+}
+
 #include "threads/thread.h"

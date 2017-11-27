@@ -195,6 +195,7 @@ bool less_priority2 (const struct list_elem *elem1,
 void calc_load_avg(void);
 void calc_recent_cpu(struct thread *t);
 void calc_recent_cpu_for_all(void);
-void calc_priority(void);
+void calc_priority(struct thread *t);
+void calc_priority_for_all(void);
 
 #endif /* threads/thread.h */
