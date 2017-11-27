@@ -117,7 +117,9 @@ struct thread
 		int nice;											// range of -20~20
 		int recent_cpu;
 
-		
+/* start of test code */
+//#ifndef USERPROG
+/* end of test code */
 #ifdef USERPROG
 		struct list child_list;							// child process list
 		struct child_process *cp;						// child process pointer
@@ -189,5 +191,11 @@ bool less_priority2 (const struct list_elem *elem1,
 /* prioirty의 대소관계를 비교해주는 함수. 왜 const를 써야하는지는 모른다.
    list_less_func의 형식에 맞게 사용했다.*/
 
-void calc_priority(int nice);
+// BSD scheduler
+void calc_load_avg(void);
+void calc_recent_cpu(struct thread *t);
+void calc_recent_cpu_for_all(void);
+void calc_priority(struct thread *t);
+void calc_priority_for_all(void);
+
 #endif /* threads/thread.h */
