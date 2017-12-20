@@ -62,8 +62,7 @@ void
 sema_down (struct semaphore *sema) 
 {
   enum intr_level old_level;
-  void* aux;
-  list_less_func *priority_func = less_priority2;
+
   ASSERT (sema != NULL);
   ASSERT (!intr_context ());
 
@@ -73,19 +72,7 @@ sema_down (struct semaphore *sema)
 		 스케쥴러에 의해 semaphore가 양수면 다시 접근 */
   while (sema->value == 0) 	
 		{
-	//진욱 - push back에서 insert_ordered로 수정
-      list_insert_ordered (&sema->waiters, &thread_current ()->elem, 
-														priority_func, aux);
-      /*이렇게 생각할 수 있다. thread의 elem 요소를 여기에서 쓰고 또 
-			ready queue를 구성하는 요소로도 쓰이는데 이 코드가 문제를 일으킬 요소는
-			다분하지 않은가?
-    곰곰히 생각해 본 결과 elem이 두 queue에 쓰인다고 해도 엉킬 위험은
-			없다고 추측했다.
-    왜냐하면 thread는 ready 상태이면서 동시에 block 상태일 수는 없기 때문이다.
-      그러므로 여기에서도 priority_less2 함수를 그대로 쓸 수 있다.
-		sema_down의 대상이 되는 스레드는 running thread이기에 이 시점에서
-		  running thread의 elem은 ready_list, block_list에 속하지 않고
-			all_list에만 속해있는 상황이다.		*/
+      list_push_back (&sema->waiters, &thread_current ()->elem);
       thread_block ();
     }
   sema->value--;
@@ -133,11 +120,8 @@ sema_up (struct semaphore *sema)
   if (!list_empty (&sema->waiters)) 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
-    
   sema->value++;
   intr_set_level (old_level);
-  //진욱-sema_up되면 preempt가 발생하도록 코드 추가
-  thread_yield();
 }
 
 static void sema_test_helper (void *sema_);

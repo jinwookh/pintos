@@ -209,12 +209,16 @@ exec (const char *cmd_line){
 		if(cmd_line[i]==' '){file_name[i]='\0'; break;}
 		file_name[i] = cmd_line[i];
 	}
+	struct file *open_file = filesys_open((const char *)file_name);
+	file_deny_write(open_file);
 /* end of code */
 
 	// 1. Check pid's validity
 	pid_t pid = (pid_t)process_execute(cmd_line);	// get new process id
 	
 /* start of code for denying writes to excutables */
+	file_allow_write(open_file);
+	file_close(open_file);
 	palloc_free_page((void *)file_name);
 /* end of code */
 

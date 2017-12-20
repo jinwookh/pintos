@@ -35,31 +35,24 @@ process_execute (const char *file_name)
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL) {
-     
-     return TID_ERROR;
-  }
+  if (fn_copy == NULL)
+    return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR) 
-	  palloc_free_page(fn_copy);
-     
-	/* start of test code */
+  if (tid == TID_ERROR)
+    palloc_free_page (fn_copy); 
 	/* While creating thread, if the thread failed to open the file,
 		 return TID_ERROR.	*/
 	//여기서는 child프로세스 실행중-> 부모가 있으면-> 차일드의 load상태확인
 	struct thread *t = return_thread(tid); //current가 아닌, tid번호를 가진thread
 	if(t->parent_tid!=NO_PARENT){ // child인 경우
 		// main스레드의 경우 parent_tid를 NO_PARENT로 세팅해놨음
-		if(t->cp->load==FAIL_LOAD) {
-			 
+		if(t->cp->load==FAIL_LOAD)
 			return TID_ERROR;
-		}
 	}
-	/* end of test code */
-   
+
   return tid;
 }
 
@@ -86,7 +79,7 @@ start_process (void *file_name_)
 		child->load = FINISH_LOAD;
 
 /* If load failed, quit. */
-  palloc_free_page(file_name);
+  palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
 
@@ -177,25 +170,26 @@ process_exit (void)
 	parent_exist = find_thread(cur->parent_tid);
 	if(parent_exist==true)	cur->cp->exit = true;	//현재스레드는차일드고이제exit
 	else										cur->cp->exit = false;
-
-/* start of test code 
 	// 열어놓은 파일들 닫기
 	struct file_descriptor *file_descriptor=NULL;
 	struct file *file;
 	struct list_elem *e;
-	for(e=list_begin(&cur->fd_list); e!=list_end(&cur->fd_list); e=list_next(e)){
-		//file_descriptor = list_entry(e, struct file_descriptor, fd_elem);
+/*
+   while (!list_empty (&list))
+     {
+       struct list_elem *e = list_pop_front (&list);
+       ...do something with e...
+     }
+*/
+   while (!list_empty (&cur->fd_list)){
+		e = list_pop_front (&cur->fd_list);
+		file_descriptor = list_entry(e, struct file_descriptor, fd_elem);
 		file = file_descriptor->file;
 		file_close(file);
-		list_remove(e);											// list element 삭제
 		palloc_free_page(file_descriptor);	// open()에서 할당한 page 해제
-	}
-// end of test code */
+	 }
 	// load에서 file_deny_write()해놓은 것을 해제하고 파일 닫기
-	if(cur->exec_file != NULL) {
-		file_allow_write(cur->exec_file);
-		file_close(cur->exec_file);
-	}
+	file_close(cur->exec_file);	// file_close가 file_allow_write포함
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -424,22 +418,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
-//start of test code
 	// Denying writes to executables
 	struct thread *exec_thread = thread_current();
-	if(file != NULL) {
-		file_deny_write(file);
-		exec_thread->exec_file = file;
-	}
-// end of test code
+	file_deny_write(file);
+	exec_thread->exec_file = file;
 
  done:
   /* We arrive here whether the load is successful or not. */
-  //file_close (file);
-  for(i = 0; i < argc; i++) {
-	  palloc_free_page(argv[i]);
-  } //palloc_free for arguments in stack
-  palloc_free_page(argv);  //palloc_free for argv
+  //file_close (file);	// process_exit()으로 close시점을 미룬다.
   return success;
 }
 
@@ -616,7 +602,6 @@ parse_fn(const char *file_name, char **argv)
 		strlcpy(argv[i],token,strlen(token)+1);
 		i++;
 	}
-	palloc_free_page(copy);
 	return i;
 }
 
@@ -687,7 +672,7 @@ void put_argument_on_stack(char **argv, int argc, void **esp)
 	*esp -= 4;
 	*(void **)(*esp) = (void *)0;
 
-	palloc_free_page((void *)argv_offset);
+	//palloc_free_page((void *)argv_offset);
 }
 
 struct child_process *init_add_child(tid_t tid){
@@ -732,10 +717,6 @@ void remove_all_child(void){
 	for(e=list_begin(&t->child_list); e!=list_end(&t->child_list);
 			e=list_next(e)){
 		child = list_entry(e, struct child_process, cp_elem);
-		/* start of test code */
-		// init_thread에서 child세팅, 하지만 load실패하고 free
-		//if(child==NULL) break;
-		/* end of test code */
 		remove_child(child);
 	}
 }

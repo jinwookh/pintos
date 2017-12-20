@@ -119,7 +119,7 @@ test_mlfqs_recent_1 (void)
       msg ("Sleeping 10 seconds to allow recent_cpu to decay, please wait...");
       start_time = timer_ticks ();
       timer_sleep (DIV_ROUND_UP (start_time, TIMER_FREQ) - start_time
-                  + 10 * TIMER_FREQ);
+                   + 10 * TIMER_FREQ);
     }
   while (thread_get_recent_cpu () > 700);
 
@@ -136,7 +136,7 @@ test_mlfqs_recent_1 (void)
                elapsed_seconds,
                recent_cpu / 100, recent_cpu % 100,
                load_avg / 100, load_avg % 100);
-					  if (elapsed_seconds >= 180)
+          if (elapsed_seconds >= 180)
             break;
         } 
       last_elapsed = elapsed;

@@ -1,6 +1,5 @@
 #include "list.h"
 #include "../debug.h"
-#include "../../threads/thread.h"
 
 /* Our doubly linked lists have two header elements: the "head"
    just before the first element and the "tail" just after the
@@ -523,16 +522,3 @@ list_min (struct list *list, list_less_func *less, void *aux)
     }
   return min;
 }
-
-/* Project 3 */
-bool find_position (const struct list_elem *a, const struct list_elem *b,
-										void *aux UNUSED){
-	bool find = false;
-	struct thread *ta = list_entry(a, struct thread, elem);
-	struct thread *tb = list_entry(b, struct thread, elem);
-	// if elem=3, e=3, x=4, y=2, list would be x->elem->e->y.
-	if(ta->priority >= tb->priority)
-		find = true;
-	return find;
-}
-

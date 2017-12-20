@@ -4,12 +4,6 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include "threads/synch.h" 	/* Project #3 */
-
-#ifndef USERPROG
-/* Project #3 */
-extern bool thread_prior_aging;
-#endif
 
 #define NO_PARENT -1	// used for child_process processing
 
@@ -99,8 +93,7 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element using in ready_list. */
-		struct list_elem block_elem;				/* List element using in block_list. */
+    struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -109,26 +102,12 @@ struct thread
 
 		/* Owned by thread.c, using for system call - KH */
 		tid_t parent_tid;										// save thread_current()->tid
-
-		/* Project #3. Threads */
-		int64_t wakeup_time;					// thread가 일어날 시간 = start+ticks
-
-		/* Project #3. Used for calculating priority */
-		int nice;											// range of -20~20
-		int recent_cpu;
-
-/* start of test code */
-//#ifndef USERPROG
-/* end of test code */
-#ifdef USERPROG
 		struct list child_list;							// child process list
 		struct child_process *cp;						// child process pointer
 
 		/* Prj2-2. User program */
 		struct list fd_list;						// syscall.c의 struct file_descriptor 참조
 		struct file *exec_file;					// denying writes to executables
-#endif
-
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
@@ -172,29 +151,5 @@ int thread_get_load_avg (void);
 bool find_thread(tid_t tid);
 struct thread* return_thread(tid_t tid);
 bool is_user_vaddr_in_process(tid_t tid);
-
-/* Prj 3 */
-void thread_wake_up (void);
-void thread_aging (void);
-void push_to_block_list (struct list_elem *elem);
-
-//block queue의 priority순 정렬을 위한 코드
-bool less_priority (const struct list_elem *elem1, 
-										const struct list_elem *elem2, 
-										void* aux UNUSED);
-
-//ready queue의 priority순 정렬을 위한 코드
-bool less_priority2 (const struct list_elem *elem1, 
-										 const struct list_elem *elem2, 
-										 void* aux UNUSED);
-/* prioirty의 대소관계를 비교해주는 함수. 왜 const를 써야하는지는 모른다.
-   list_less_func의 형식에 맞게 사용했다.*/
-
-// BSD scheduler
-void calc_load_avg(void);
-void calc_recent_cpu(struct thread *t);
-void calc_recent_cpu_for_all(void);
-void calc_priority(struct thread *t);
-void calc_priority_for_all(void);
 
 #endif /* threads/thread.h */

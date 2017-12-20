@@ -2,6 +2,3 @@ cscope.files
 cscope.out
 TAGS
 tags
-# .swp과 .nfs~~~는 무시
-*.swp
-*.nfs*
