@@ -1,12 +1,17 @@
+
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-
+#include "threads/vaddr.h"
+#include "threads/palloc.h"
 /* Number of page faults processed. */
 static long long page_fault_cnt;
+
+static bool
+install_page_stack (void *upage, void *kpage, bool writable);
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
@@ -126,7 +131,9 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
-
+  uint8_t *kpage;
+  bool success;
+  uint32_t pageNum;
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
      data.  It is not necessarily the address of the instruction
@@ -147,7 +154,25 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-  exit(-1);
+  
+  //jw - add code for give different reaction to peculiar page fault
+
+  if(!not_present) {
+	  exit(-1);
+  }
+  
+  if( f->esp <= 0xbffff000 && fault_addr >= 0xbfff0000) {
+	  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+	  pageNum = ((uint32_t)PHYS_BASE - (uint32_t)f->esp)/ PGSIZE + 1;
+	  success =  install_page_stack(((uint8_t*)PHYS_BASE)- PGSIZE * pageNum, kpage, true);
+	  if(success) {
+  		return;
+	  }
+  }  
+  else {
+	  exit(-1);
+  }
+
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
@@ -159,3 +184,13 @@ page_fault (struct intr_frame *f)
   kill (f);
 }
 
+static bool
+install_page_stack (void *upage, void *kpage, bool writable)
+{
+  struct thread *th = thread_current ();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  return (pagedir_get_page (th->pagedir, upage) == NULL
+          && pagedir_set_page (th->pagedir, upage, kpage, writable));
+}
